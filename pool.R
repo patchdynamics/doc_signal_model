@@ -10,10 +10,11 @@ DOCin = function(t) {
 
 pool =  function(t, y, params) {
   DOC = y[1]
+  DOCoutflow = y[2]
   with(as.list(params), {
-    dDOC = DOCin(t) - ( k * DOC ) - ( Dout * DOC ) 
-    d2DOCout = Dout * dDOC  # want the 2nd deriv (flow change) b/c DOCout accumlates
-    list(c(dDOC, d2DOCout))
+    dDOC = DOCin(t) - ( k * DOC ) - ( DOCoutflow ) 
+    dDOCoutflow = Dout * dDOC
+    list(c(dDOC, dDOCoutflow))
   })
 }
 
@@ -21,14 +22,14 @@ pool =  function(t, y, params) {
 # DOCin - flow of DOC into the system, kg
 # Dout - percentage flow out of the system, i.e. water flow/residence time
 
-params = c(k=.1, DOCin = 8, Dout = .6)
+params = c(k=.1, DOCin = 8, Dout = .2)
 Initial.DOC = 100 # units ?
-Initial.DOCout = 0
+Initial.DOCoutflow = Initial.DOC * params['Dout']
 one.week = 24*7
 two.weeks = 24*14
 t = 1:two.weeks
 
-state = c(Initial.DOC, Initial.DOCout)
+state = c(Initial.DOC, Initial.DOCoutflow)
 out = ode(y = state, times = t, func = pool, parms = params)
 
 matplot(t, out[,2:3], type = "l", ylab = "p", xlab = "time")
