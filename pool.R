@@ -23,7 +23,7 @@ pool =  function(t, y, params) {
 # Dout - percentage flow out of the system, i.e. water flow/residence time
 
 params = c(k=.1, DOCin = 8, Dout = .2)
-Initial.DOC = 100 # units ?
+Initial.DOC = 0 # units ?
 Initial.DOCoutflow = Initial.DOC * params['Dout']
 one.week = 24*7
 two.weeks = 24*14
