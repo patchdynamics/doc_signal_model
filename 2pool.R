@@ -42,6 +42,7 @@ pool =  function(t, y, params) {
   UptakeRateThisTimeStep = 0 # summation
   
   BacteriaDensity = y[PoolDivisions * 2 + 1]
+  AlgaeDensity = y[PoolDivisions * 2 + 1]
   
   with(as.list(params), {
     differentials = c()
@@ -67,18 +68,24 @@ pool =  function(t, y, params) {
       TotalBacterialUptake = TotalBacterialUptake + UptakeRate * BacteriaDensity
     }
     
+    #
+    # With the exception of K, these params are completely made up at this point
+    # Needs proper parameterization
+    #
     KBact = 10 # which is to say, we are allowing 10 kilometers of biofilm.
-    r = .1 # I have no basis for this yet
+    BGE = .05 #  stating point: http://www.annualreviews.org/doi/abs/10.1146/annurev.ecolsys.29.1.503
+    AlgaeInhibitsBact = .5 # not parameterized yet
     # bacteria need to grow based on DOC uptake
-    dBacteriaDensity = r * TotalBacterialUptake * ( 1 - BacteriaDensity / KBact)
+    dBacteriaDensity = BGE * TotalBacterialUptake * ( 1 - BacteriaDensity / KBact - AlgaeInhibitsBact * AlgaeDensity / KBact)
     
-    #dBacteriaDensity = r * BacteriaDensity * ( 1 - BacteriaDensity / KBact - AlgaeInhibitsBact / KBact)
+    KAlg = 10
+    # these constants parameterized yet
+    r = .1  # this is the photosynthesis production
+    BactInhibitsAlgae = .5
+    dAlgaeDensity = r * AlgaeDensity * ( 1 - AlgaeDensity / KAlg - BactInhibitsAlgae * BacteriaDensity / KAlg )
     
-    #KAlg = 10
-    #r = .1
-    #dAlgaeDensity = r * AlgaeDensity * ( 1 - AlgaeDensity / KAlg - BactInhibitsAlgae / KAlg )
+    differentials = c(differentials, dBacteriaDensity, dAlgaeDensity)
     
-    differentials = c(differentials, dBacteriaDensity)
     
     #print(differentials)
     list(differentials)
@@ -99,19 +106,25 @@ params = c(Dout = .2, PoolDivisions = PoolDivisions)
 
 Initial.DOC = 0 # units ?
 Initial.DOCoutflow = Initial.DOC * params['Dout']
+Initial.BacteriaDensity = .1
+Initial.AlgaeDensity = .2
+
 one.week = 24*7
 two.weeks = 24*14
 max = one.week
 t = 1:max
 
 
+
 state = rep(0, params['PoolDivisions'] * 2)
-state = c(state, .1)
+state = c(state, Initial.BacteriaDensity)
+state = c(state, Initial.AlgaeDensity)
 out = ode(y = state, times = t, func = pool, parms = params)
 
-par(mfrow=c(2,2))
+par(mfrow=c(2,3))
 matplot(t, out[,2:3], type = "l", ylab = "DOM fraction 1", xlab = 'hours')
 matplot(t, out[,params['PoolDivisions'] * 2+2], type = "l", ylab = "Bacteria Density", xlab = 'hours')
+matplot(t, out[,params['PoolDivisions'] * 2+3], type = "l", ylab = "Algae Density", xlab = 'hours')
 #matplot(t, sapply(1:PoolDivisions, function(subpool){out[,1+2*subpool]}))
 
 #par(mfrow=c(1,2))
