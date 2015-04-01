@@ -16,13 +16,16 @@ DOCin = function(t, subpool, poolDivisions) {
   } else {
     mean = 1.7
   }
-  mean = 1.7
+  mean = 1.7 #+ .5 * sin(2 * pi * (t %% 120) / 120) # oscillate this
   
   portion = plnorm(subpool * segment, mean = mean) - plnorm((subpool - 1) * segment, mean = mean)
   #print(segment)
   #print(portion)
   
-  DOCinTotal = 211
+  DOCinTotal = 211  
+
+  #DOCinTotal = 120  + 50 * sin(2 * pi * (t %% 120) / 120) # oscillate this
+  
   
   PoolDOCin = DOCinTotal * portion
   return(PoolDOCin)
@@ -80,13 +83,13 @@ pool =  function(t, y, params) {
     # With the exception of K, these params are completely made up at this point
     # Needs proper parameterization
     #
-    KBact = 10 # which is to say, we are allowing 10 kilometers of biofilm.
+    KBact = 10  # which is to say, we are allowing 10 kilometers of biofilm.
     BGE = .05 #  stating point: http://www.annualreviews.org/doi/abs/10.1146/annurev.ecolsys.29.1.503
     AlgaeInhibitsBact = .5 # not parameterized yet
     # bacteria need to grow based on DOC uptake
     dBacteriaDensity = BGE * TotalBacterialUptake * ( 1 - BacteriaDensity / KBact - AlgaeInhibitsBact * AlgaeDensity / KBact)
     
-    KAlg = 10
+    KAlg = 10 
     # these constants parameterized yet
     r = .1  # this is the photosynthesis production
     BactInhibitsAlgae = .5
@@ -119,7 +122,7 @@ Initial.AlgaeDensity = .2
 
 one.week = 24*7
 two.weeks = 24*14
-max = 300
+max = 24 * 30
 t = 1:max
 
 
@@ -143,7 +146,9 @@ ks = -sapply(1:PoolDivisions, k, PoolDivisions);
 plot(inflows~ks, type="l", ylim=c(0,ylimit), xlab='-k' )
 plot(outflows~ks,type="l", ylim=c(0,ylimit), xlab='-k' )
 
-#par(mfrow=c(1,1))
+par(mfrow=c(1,1))
+matplot(t, out[,params['PoolDivisions'] * 2+2], type = "l", ylab = "Bacteria Density", xlab = 'hours')
+
 #matplot(t, out[,2:90], 2, type = "l")
 #matplot(t, sapply(1:PoolDivisions, function(subpool){ sapply(t,function(t){ 
 #  DOCin(t, subpool, PoolDivisions)})}))
