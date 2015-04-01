@@ -10,7 +10,15 @@ DOCin = function(t, subpool, poolDivisions) {
   segment = range / poolDivisions
   # this use of lognormal is not quite right
   # remember than proportion in a given pool have ln(k) is normally distributed
-  portion = plnorm(subpool * segment) - plnorm((subpool - 1) * segment)
+ 
+  if(t < 50) {
+    mean = .5
+  } else {
+    mean = 1.7
+  }
+  mean = 1.7
+  
+  portion = plnorm(subpool * segment, mean = mean) - plnorm((subpool - 1) * segment, mean = mean)
   #print(segment)
   #print(portion)
   
@@ -30,9 +38,10 @@ k = function(subpool, poolDivisions){
 
 pool =  function(t, y, params) {
   
-  BiofilmBacteriaFraction = 1
   MaximumFeasibleUptakeRate = MaximumPossibleUptake  # per hour
   UptakeRateThisTimeStep = 0 # summation
+  
+  BacteriaDensity = y[PoolDivisions * 2 + 1]
   
   with(as.list(params), {
     differentials = c()
@@ -49,12 +58,18 @@ pool =  function(t, y, params) {
       
       #print(UptakeRateThisTimeStep)
       
-      dDOC = DOCin(t, i, PoolDivisions) - UptakeRate *  BiofilmBacteriaFraction - DOCoutflow
+      dDOC = DOCin(t, i, PoolDivisions) - UptakeRate * BacteriaDensity - DOCoutflow
       dDOCoutflow = Dout * dDOC
       differentials[index] = dDOC
       differentials[index+1] = dDOCoutflow
 
     }
+    
+    K = 10 # which is to say, we are allowing 10 kilometers of biofilm.
+    r = .1 # I have no basis for this yet
+    dBacteriaDensity = r * BacteriaDensity * ( 1 - BacteriaDensity / K)
+    differentials = c(differentials, dBacteriaDensity)
+    
     #print(differentials)
     list(differentials)
   })
@@ -69,7 +84,7 @@ pool =  function(t, y, params) {
 # assume the inflow to each pool is equal (this is not true)
 # outflows are equal percentages (this will be true)
 # also assume initial DOC is the same and 0 for both pools
-PoolDivisions = 100
+PoolDivisions = 10
 params = c(Dout = .2, PoolDivisions = PoolDivisions)
 
 Initial.DOC = 0 # units ?
@@ -82,16 +97,17 @@ t = 1:max
 
 
 state = rep(0, params['PoolDivisions'] * 2)
+state = c(state, .1)
 out = ode(y = state, times = t, func = pool, parms = params)
 
 par(mfrow=c(2,2))
-matplot(t, out[,2:3], type = "l", ylab = "p", xlab = 'hours')
-matplot(t, out[,4:5], type = "l", ylab = "p", xlab = 'hours')
+matplot(t, out[,2:3], type = "l", ylab = "DOM fraction 1", xlab = 'hours')
+matplot(t, out[,params['PoolDivisions'] * 2+2], type = "l", ylab = "Bacteria Density", xlab = 'hours')
 #matplot(t, sapply(1:PoolDivisions, function(subpool){out[,1+2*subpool]}))
 
 #par(mfrow=c(1,2))
 inflows = sapply(1:PoolDivisions, function(subpool){DOCin(1, subpool, PoolDivisions)})
-outflows = sapply(1:PoolDivisions, function(subpool){out[,1+2*subpool][max]})
+outflows = sapply(1:PoolDivisions, function(subpool){out[,1+2*subpool][max-1]})
 ylimit = max(inflows)
 ks = -sapply(1:PoolDivisions, k, PoolDivisions);
 plot(inflows~ks, type="l", ylim=c(0,ylimit), xlab='-k' )
@@ -99,7 +115,8 @@ plot(outflows~ks,type="l", ylim=c(0,ylimit), xlab='-k' )
 
 #par(mfrow=c(1,1))
 #matplot(t, out[,2:90], 2, type = "l")
-
+#matplot(t, sapply(1:PoolDivisions, function(subpool){ sapply(t,function(t){ 
+#  DOCin(t, subpool, PoolDivisions)})}))
 
 #par(mfrow=c(2,2))
 #t1 = sapply(1:PoolDivisions, function(subpool){out[1+subpool]})
