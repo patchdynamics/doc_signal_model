@@ -45,6 +45,7 @@ pool =  function(t, y, params) {
   
   with(as.list(params), {
     differentials = c()
+    TotalBacterialUptake = 0
     for(i in 1:PoolDivisions){
       index = (i-1)*2 + 1
       DOC = y[index]
@@ -63,11 +64,20 @@ pool =  function(t, y, params) {
       differentials[index] = dDOC
       differentials[index+1] = dDOCoutflow
 
+      TotalBacterialUptake = TotalBacterialUptake + UptakeRate * BacteriaDensity
     }
     
-    K = 10 # which is to say, we are allowing 10 kilometers of biofilm.
+    KBact = 10 # which is to say, we are allowing 10 kilometers of biofilm.
     r = .1 # I have no basis for this yet
-    dBacteriaDensity = r * BacteriaDensity * ( 1 - BacteriaDensity / K)
+    # bacteria need to grow based on DOC uptake
+    dBacteriaDensity = r * TotalBacterialUptake * ( 1 - BacteriaDensity / KBact)
+    
+    #dBacteriaDensity = r * BacteriaDensity * ( 1 - BacteriaDensity / KBact - AlgaeInhibitsBact / KBact)
+    
+    #KAlg = 10
+    #r = .1
+    #dAlgaeDensity = r * AlgaeDensity * ( 1 - AlgaeDensity / KAlg - BactInhibitsAlgae / KAlg )
+    
     differentials = c(differentials, dBacteriaDensity)
     
     #print(differentials)
@@ -91,7 +101,6 @@ Initial.DOC = 0 # units ?
 Initial.DOCoutflow = Initial.DOC * params['Dout']
 one.week = 24*7
 two.weeks = 24*14
-t = 1:two.weeks
 max = one.week
 t = 1:max
 
