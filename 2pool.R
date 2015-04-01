@@ -23,6 +23,7 @@ DOCin = function(t, subpool, poolDivisions) {
   #print(portion)
   
   DOCinTotal = 211
+  
   PoolDOCin = DOCinTotal * portion
   return(PoolDOCin)
 }
@@ -61,6 +62,13 @@ pool =  function(t, y, params) {
       #print(UptakeRateThisTimeStep)
       
       dDOC = DOCin(t, i, PoolDivisions) - UptakeRate * BacteriaDensity - DOCoutflow
+      
+      # Ad Hoc Algal contribution to DOC
+      l = .05 #exhudation of labile DOC by algae, needs to be properly parameterized
+      if( i < PoolDivisions / 10) { # lowest tenth are most labile
+        dDOC = dDOC + (l * AlgaeDensity) / (PoolDivisions / 10)    # so we get a boost from algae here
+      }
+      
       dDOCoutflow = Dout * dDOC
       differentials[index] = dDOC
       differentials[index+1] = dDOCoutflow
@@ -101,7 +109,7 @@ pool =  function(t, y, params) {
 # assume the inflow to each pool is equal (this is not true)
 # outflows are equal percentages (this will be true)
 # also assume initial DOC is the same and 0 for both pools
-PoolDivisions = 10
+PoolDivisions = 50
 params = c(Dout = .2, PoolDivisions = PoolDivisions)
 
 Initial.DOC = 0 # units ?
@@ -111,7 +119,7 @@ Initial.AlgaeDensity = .2
 
 one.week = 24*7
 two.weeks = 24*14
-max = one.week
+max = 300
 t = 1:max
 
 
@@ -122,7 +130,7 @@ state = c(state, Initial.AlgaeDensity)
 out = ode(y = state, times = t, func = pool, parms = params)
 
 par(mfrow=c(2,3))
-matplot(t, out[,2:3], type = "l", ylab = "DOM fraction 1", xlab = 'hours')
+matplot(t, out[,2:3], type = "l", ylab = "DOC fraction 1", xlab = 'hours')
 matplot(t, out[,params['PoolDivisions'] * 2+2], type = "l", ylab = "Bacteria Density", xlab = 'hours')
 matplot(t, out[,params['PoolDivisions'] * 2+3], type = "l", ylab = "Algae Density", xlab = 'hours')
 #matplot(t, sapply(1:PoolDivisions, function(subpool){out[,1+2*subpool]}))
