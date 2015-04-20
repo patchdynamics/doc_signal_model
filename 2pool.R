@@ -1,5 +1,11 @@
 library(deSolve)
-range = 5 # range of the lognormal distribution to use
+library(emdbook)
+
+# K
+mini = 0.0004
+maxi = .8
+range = maxi - mini
+
 MaxTotalDOCUptake = 2.42  # g/h per km stream, the maximum rate derived from  McLaughlin and Kaplan 2013
 # this factor of 20 effectively extends the reach by to 20 km
 
@@ -11,31 +17,34 @@ DOCin = function(t, subpool, poolDivisions) {
   # this use of lognormal is not quite right
   # remember than proportion in a given pool have ln(k) is normally distributed
  
-  if(t < 50) {
-    mean = .5
-  } else {
-    mean = 1.7
-  }
-  mean = 1.7 #+ .5 * sin(2 * pi * (t %% 120) / 120) # oscillate this
+  # if(t < 50) {
+  #   mean = .5
+  # } else {
+  #  mean = 5
+  # }
+  # mean = 2 #+ .5 * sin(2 * pi * (t %% 120) / 120) # oscillate this
+  # sdlog = .1
+  # portion = plnorm(subpool * segment, mean = mean, sdlog = sdlog) - plnorm((subpool - 1) * segment, mean = mean, sdlog = sdlog)
+  # trapezoid rule
   
-  portion = plnorm(subpool * segment, mean = mean) - plnorm((subpool - 1) * segment, mean = mean)
-  #print(segment)
-  #print(portion)
+  upper = (poolDivisions - subpool) * segment + mini
+  lower = (poolDivisions - subpool - 1) * segment + mini
+  portion = .5 * (dlnorm(upper, mean = mean, sdlog = sdlog) + dlnorm(lower, mean = mean, sdlog = sdlog) ) * segment
   
-  DOCinTotal = 211  
-
-  #DOCinTotal = 120  + 50 * sin(2 * pi * (t %% 120) / 120) # oscillate this
-  
+  correction_factor = 1
+  DOCinTotal = 211 * correction_factor 
   
   PoolDOCin = DOCinTotal * portion
   return(PoolDOCin)
 }
 
+# refactor: poolDivisions should be a global var or a member var in an object
 k = function(subpool, poolDivisions){
   # this is also not quite right
   # because MaxTotalDOCUptake is not the max rate, but rather the max combined rate
   # of all those exponential decays
-  lookup = seq(.1, .0034, length.out = poolDivisions + 1)
+  lookup = seq(maxi, mini, length.out = poolDivisions + 1)
+  
   k = lookup[subpool + 1]
   return(k)
 }
@@ -56,7 +65,8 @@ pool =  function(t, y, params) {
       DOC = y[index]
       DOCoutflow = y[index+1]
       
-      UptakeRate = k(i, PoolDivisions) * DOC ;
+      k = k(i, PoolDivisions)
+      UptakeRate =  k * DOC ;
       if(UptakeRate + UptakeRateThisTimeStep > MaximumFeasibleUptakeRate){
         UptakeRate = MaximumFeasibleUptakeRate - UptakeRateThisTimeStep
       }
@@ -69,7 +79,7 @@ pool =  function(t, y, params) {
       # Ad Hoc Algal contribution to DOC
       l = .05 #exhudation of labile DOC by algae, needs to be properly parameterized
       if( i < PoolDivisions / 10) { # lowest tenth are most labile
-        dDOC = dDOC + (l * AlgaeDensity) / (PoolDivisions / 10)    # so we get a boost from algae here
+        #dDOC = dDOC + (l * AlgaeDensity) / (PoolDivisions / 10)    # so we get a boost from algae here
       }
       
       dDOCoutflow = Dout * dDOC
@@ -112,7 +122,7 @@ pool =  function(t, y, params) {
 # assume the inflow to each pool is equal (this is not true)
 # outflows are equal percentages (this will be true)
 # also assume initial DOC is the same and 0 for both pools
-PoolDivisions = 50
+PoolDivisions = 100
 params = c(Dout = .2, PoolDivisions = PoolDivisions)
 
 Initial.DOC = 0 # units ?
@@ -122,7 +132,8 @@ Initial.AlgaeDensity = .2
 
 one.week = 24*7
 two.weeks = 24*14
-max = 24 * 30
+one.month = 24 * 30
+max = one.week # one month
 t = 1:max
 
 
@@ -142,12 +153,18 @@ matplot(t, out[,params['PoolDivisions'] * 2+3], type = "l", ylab = "Algae Densit
 inflows = sapply(1:PoolDivisions, function(subpool){DOCin(1, subpool, PoolDivisions)})
 outflows = sapply(1:PoolDivisions, function(subpool){out[,1+2*subpool][max-1]})
 ylimit = max(inflows)
-ks = -sapply(1:PoolDivisions, k, PoolDivisions);
-plot(inflows~ks, type="l", ylim=c(0,ylimit), xlab='-k' )
-plot(outflows~ks,type="l", ylim=c(0,ylimit), xlab='-k' )
+k = sapply(1:PoolDivisions, k, PoolDivisions)
+plot(inflows~k, type="l", ylim=c(0,ylimit), xlab='k' )
+plot(outflows~k,type="l", ylim=c(0,ylimit), xlab='k' )
 
 par(mfrow=c(1,1))
-matplot(t, out[,params['PoolDivisions'] * 2+2], type = "l", ylab = "Bacteria Density", xlab = 'hours')
+
+for(i in 1:10){
+  outflows = sapply(1:PoolDivisions, function(subpool){out[,1+2*subpool][i * nrow(out) / 10 ]})
+  plot(outflows~k,type="l", ylim=c(0,ylimit), xlab='k' )
+}
+
+#matplot(t, out[,params['PoolDivisions'] * 2+2], type = "l", ylab = "Bacteria Density", xlab = 'hours')
 
 #matplot(t, out[,2:90], 2, type = "l")
 #matplot(t, sapply(1:PoolDivisions, function(subpool){ sapply(t,function(t){ 
