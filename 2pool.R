@@ -151,16 +151,20 @@ state = c(state, Initial.AlgaeDensity)
 params['KBact'] = 10
 params['rAlg'] = .3
 params['AlgaeInhibitsBact'] = .5
-state = c(rep(0, params['PoolDivisions'] * 2), 2, 2 )
+state = c(rep(0, params['PoolDivisions'] * 2), 6.6213, 6.6974 )  # Algae + Bact stable
+#state = c(rep(0, params['PoolDivisions'] * 2), 10, 6.6974 )  # Algae + Bact stable
 out = ode(y = state, times = t, func = pool, parms = params)
+
+DOCend = out[nrow(out),2:101]
+state = c(DOCend, 6.6213, 6.6974 )  # Algae + Bact stable, with stabilized DOC flow
+out = ode(y = state, times = t, func = pool, parms = params)
+
 
 par(mfrow=c(2,3))
 matplot(t, out[,2:3], type = "l", ylab = "DOC fraction 1", xlab = 'hours')
-matplot(t, out[,params['PoolDivisions'] * 2+2], type = "l", ylab = "Bacteria Density", xlab = 'hours')
-matplot(t, out[,params['PoolDivisions'] * 2+3], type = "l", ylab = "Algae Density", xlab = 'hours')
-#matplot(t, sapply(1:PoolDivisions, function(subpool){out[,1+2*subpool]}))
+matplot(t, out[,params['PoolDivisions'] * 2+2], type = "l", ylab = "Bacteria Density", xlab = 'hours', ylim = c(0,params['KBact']))
+matplot(t, out[,params['PoolDivisions'] * 2+3], type = "l", ylab = "Algae Density", xlab = 'hours', ylim = c(0, params['KAlg']))
 
-#par(mfrow=c(1,2))
 inflows = sapply(1:PoolDivisions, function(subpool){DOCin(1, subpool, PoolDivisions)})
 outflows = sapply(1:PoolDivisions, function(subpool){out[,1+2*subpool][max-1]})
 ylimit = max(inflows)
@@ -171,8 +175,8 @@ plot(outflows~ks,type="l", ylim=c(0,ylimit), xlab='k' )
 par(mfrow=c(1,1))
 
 for(i in 1:10){
-#  outflows = sapply(1:PoolDivisions, function(subpool){out[,1+2*subpool][i * nrow(out) / 10 ]})
-#  plot(outflows~ks,type="l", ylim=c(0,ylimit), xlab='k' )
+  outflows = sapply(1:PoolDivisions, function(subpool){out[,1+2*subpool][i * nrow(out) / 10 ]})
+  plot(outflows~ks,type="l", ylim=c(0,ylimit), xlab='k' )
 }
 
 #matplot(t, out[,params['PoolDivisions'] * 2+2], type = "l", ylab = "Bacteria Density", xlab = 'hours')
