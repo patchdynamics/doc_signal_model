@@ -5,6 +5,8 @@ library(emdbook)
 mini = 0.0004
 maxi = .8
 range = maxi - mini
+mean = .3
+sdlog = 2.5
 
 MaxTotalDOCUptake = 2.42  # g/h per km stream, the maximum rate derived from  McLaughlin and Kaplan 2013
 # this factor of 20 effectively extends the reach by to 20 km
@@ -55,7 +57,7 @@ pool =  function(t, y, params) {
   UptakeRateThisTimeStep = 0 # summation
   
   BacteriaDensity = y[PoolDivisions * 2 + 1]
-  AlgaeDensity = y[PoolDivisions * 2 + 1]
+  AlgaeDensity = y[PoolDivisions * 2 + 2]
   
   with(as.list(params), {
     differentials = c()
@@ -89,24 +91,13 @@ pool =  function(t, y, params) {
       TotalBacterialUptake = TotalBacterialUptake + UptakeRate * BacteriaDensity
     }
     
-    #
-    # With the exception of K, these params are completely made up at this point
-    # Needs proper parameterization
-    #
-    KBact = 10  # which is to say, we are allowing 10 kilometers of biofilm.
-    BGE = .05 #  stating point: http://www.annualreviews.org/doi/abs/10.1146/annurev.ecolsys.29.1.503
-    AlgaeInhibitsBact = .5 # not parameterized yet
+
     # bacteria need to grow based on DOC uptake
     dBacteriaDensity = BGE * TotalBacterialUptake * ( 1 - BacteriaDensity / KBact - AlgaeInhibitsBact * AlgaeDensity / KBact)
     
-    KAlg = 10 
-    # these constants parameterized yet
-    r = .1  # this is the photosynthesis production
-    BactInhibitsAlgae = .5
-    dAlgaeDensity = r * AlgaeDensity * ( 1 - AlgaeDensity / KAlg - BactInhibitsAlgae * BacteriaDensity / KAlg )
+    dAlgaeDensity = rAlg * AlgaeDensity * ( 1 - AlgaeDensity / KAlg - BactInhibitsAlgae * BacteriaDensity / KAlg )
     
     differentials = c(differentials, dBacteriaDensity, dAlgaeDensity)
-    
     
     #print(differentials)
     list(differentials)
@@ -122,25 +113,45 @@ pool =  function(t, y, params) {
 # assume the inflow to each pool is equal (this is not true)
 # outflows are equal percentages (this will be true)
 # also assume initial DOC is the same and 0 for both pools
-PoolDivisions = 100
-params = c(Dout = .2, PoolDivisions = PoolDivisions)
+PoolDivisions = 50
+params = c(
+          Dout = .2, 
+          PoolDivisions = PoolDivisions,
+          #
+          # With the exception of K, these params are completely made up at this point
+          # Needs proper parameterization
+          #
+          KBact = 10,  # which is to say, we are allowing 10 kilometers of biofilm.
+          BGE = .05, #  stating point: http://www.annualreviews.org/doi/abs/10.1146/annurev.ecolsys.29.1.503
+          AlgaeInhibitsBact = .2, # not parameterized yet)
+          KAlg = 10, 
+          # these constants parameterized yet
+          rAlg = .1,  # this is the photosynthesis production
+          BactInhibitsAlgae = .5
+         )
 
-Initial.DOC = 0 # units ?
-Initial.DOCoutflow = Initial.DOC * params['Dout']
+#Initial.DOC = 0 # units ?
+#Initial.DOCoutflow = Initial.DOC * params['Dout']
 Initial.BacteriaDensity = .1
-Initial.AlgaeDensity = .2
+Initial.AlgaeDensity = 0
 
 one.week = 24*7
 two.weeks = 24*14
 one.month = 24 * 30
 max = one.week # one month
-t = 1:max
+t = 1:one.week
 
 
 
 state = rep(0, params['PoolDivisions'] * 2)
 state = c(state, Initial.BacteriaDensity)
 state = c(state, Initial.AlgaeDensity)
+
+
+params['KBact'] = 10
+params['rAlg'] = .3
+params['AlgaeInhibitsBact'] = .5
+state = c(rep(0, params['PoolDivisions'] * 2), 2, 2 )
 out = ode(y = state, times = t, func = pool, parms = params)
 
 par(mfrow=c(2,3))
@@ -153,15 +164,15 @@ matplot(t, out[,params['PoolDivisions'] * 2+3], type = "l", ylab = "Algae Densit
 inflows = sapply(1:PoolDivisions, function(subpool){DOCin(1, subpool, PoolDivisions)})
 outflows = sapply(1:PoolDivisions, function(subpool){out[,1+2*subpool][max-1]})
 ylimit = max(inflows)
-k = sapply(1:PoolDivisions, k, PoolDivisions)
-plot(inflows~k, type="l", ylim=c(0,ylimit), xlab='k' )
-plot(outflows~k,type="l", ylim=c(0,ylimit), xlab='k' )
+ks = sapply(1:PoolDivisions, k, PoolDivisions)
+plot(inflows~ks, type="l", ylim=c(0,ylimit), xlab='k' )
+plot(outflows~ks,type="l", ylim=c(0,ylimit), xlab='k' )
 
 par(mfrow=c(1,1))
 
 for(i in 1:10){
-  outflows = sapply(1:PoolDivisions, function(subpool){out[,1+2*subpool][i * nrow(out) / 10 ]})
-  plot(outflows~k,type="l", ylim=c(0,ylimit), xlab='k' )
+#  outflows = sapply(1:PoolDivisions, function(subpool){out[,1+2*subpool][i * nrow(out) / 10 ]})
+#  plot(outflows~ks,type="l", ylim=c(0,ylimit), xlab='k' )
 }
 
 #matplot(t, out[,params['PoolDivisions'] * 2+2], type = "l", ylab = "Bacteria Density", xlab = 'hours')

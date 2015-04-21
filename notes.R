@@ -40,10 +40,10 @@ sum(out[6:50]) / sum(out)
 # 1.9, 2.4
 # .1 12
 # 0.4 3
-mean = 0.5
-sdlog = 1.9
+mean = 0.3
+sdlog = 2.5
 o = dlnorm(seq(0.0004,.8,.01), mean= mean, sdlog= sdlog)
-plot(o~seq(0.0004,.8,.01), ylim=c(0,1) )
+plot(o~seq(0.0004,.8,.01), ylim=c(0,2) )
 sum(o * .0079)
 
 # and here is the shape like in the paper
@@ -100,8 +100,8 @@ portions = sapply(1:poolDivisions, function(subpool){ portion( subpool, poolDivi
 out = sapply(1:poolDivisions, function(subpool){ DOCin2(1, subpool, poolDivisions)  })
 lookup = seq(maxi, mini, length=100)
 plot(out ~ lookup[0:100], ylim=c(0, 2))
-sum(out[75:100]) / sum(out)
-sum(out[43:74]) / sum(out)
+sum(out[1:25]) / sum(out)
+sum(out[25:58]) / sum(out)
 
 
 
