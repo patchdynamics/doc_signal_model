@@ -9,7 +9,7 @@ mean = .3
 sdlog = 2.5
 
 MaxTotalDOCUptake = 2.42  # g/h per km stream, the maximum rate derived from  McLaughlin and Kaplan 2013
-# this factor of 20 effectively extends the reach by to 20 km
+# a factor increase effectively extends residence time - that is not a correct statement
 
 BiofilmBacteriaFraction = .8; # for now set density of bacteria at 80% of their maximum possible
 MaximumPossibleUptake = MaxTotalDOCUptake # same as above, at least for now
@@ -52,9 +52,54 @@ k = function(subpool, poolDivisions){
 }
 
 rCDOM = function(subpool, poolDivisions){
-  # parameterize this somehow.. maybe just some simple function x2 or something.
+  if(subpool > poolDivisions / 2){
+    return(0)
+  } else {
+    # parameterized as a 2nd order response to halfway through the pool division range
+    # the most photolabile is the slowest to be biolabile
+    rCDOM = (-.001 / (poolDivisions / 2)^2) * subpool^2  + .001
+    return(rCDOM)
+  }
+}
+
+
+BactDist = function(subpool, B, poolDivisions){
+  # pretty labile
+  mean = 0.5
+  sd = .05
+  
+  segment = range / poolDivisions
+  
+  upper = (poolDivisions - subpool) * segment + mini
+  lower = (poolDivisions - subpool - 1) * segment + mini
+  portion = .5 * (dnorm(upper, mean = mean, sd = sd) + dnorm(lower, mean = mean, sd = sd) ) * segment
+  
+  return(B * portion)
   
 }
+
+#out = sapply(1:poolDivisions, function(subpool){ BactDist(subpool, 10, poolDivisions)  })
+#plot(out~ks)
+#sum(out)
+
+AlgDist = function(subpool, A, poolDivisions){
+  # very labile
+  mean = 0.69
+  sd = .03
+  
+  segment = range / poolDivisions
+  
+  upper = (poolDivisions - subpool) * segment + mini
+  lower = (poolDivisions - subpool - 1) * segment + mini
+  portion = .5 * (dnorm(upper, mean = mean, sd = sd) + dnorm(lower, mean = mean, sd = sd) ) * segment
+  
+  return(A * portion)
+  
+}
+
+#out = sapply(1:poolDivisions, function(subpool){ AlgDist(subpool, 10, poolDivisions)  })
+#plot(out~ks)
+#sum(out)
 
 pool =  function(t, y, params) {
   
@@ -64,7 +109,12 @@ pool =  function(t, y, params) {
   BacteriaDensity = y[PoolDivisions * 2 + 1]
   AlgaeDensity = y[PoolDivisions * 2 + 2]
   
-  TotalCDOM = sum(DOC[1:nrow(DOC)/2])
+  TotalCDOM = 0
+  for(i in 1:PoolDivisions){
+    index = (i-1)*2 + 1
+    DOC = y[index]
+    TotalCDOM = TotalCDOM + DOC
+  }
     
   with(as.list(params), {
     differentials = c()
@@ -84,8 +134,8 @@ pool =  function(t, y, params) {
       #print(UptakeRateThisTimeStep)
       
       dDOC = DOCin(t, i, PoolDivisions) - UptakeRate * BacteriaDensity - DOCoutflow +
-             BactDist(i, BactD * B) + AlgDist(i, AlgD * A) +
-             -(rCDOM(i) * li - rCDOM(i) * DOC * A / (bA_CDOM + A) )
+             BactDist(i, BactD * BacteriaDensity, PoolDivisions) + AlgDist(i, AlgD * AlgaeDensity, PoolDivisions) +
+             -(rCDOM(i, PoolDivisions) * li - rCDOM(i, PoolDivisions) * DOC * AlgaeDensity / (bA_CDOM + AlgaeDensity) )
       
       # Ad Hoc Algal contribution to DOC
       l = .05 #exhudation of labile DOC by algae, needs to be properly parameterized
@@ -105,7 +155,7 @@ pool =  function(t, y, params) {
     dBacteriaDensity = BGE * TotalBacterialUptake * ( 1 - BacteriaDensity / KBact - AlgaeInhibitsBact * AlgaeDensity / KBact) - BactD * B
     
     dAlgaeDensity = rAlg * li * AlgaeDensity * ( 1 - CDOMInhibitsAlgae * TotalCDOM / kAlg -  AlgaeDensity / KAlg - BactInhibitsAlgae * BacteriaDensity / KAlg ) +
-                    -AlgD * A          
+                    -AlgD * AlgaeDensity          
     
     differentials = c(differentials, dBacteriaDensity, dAlgaeDensity)
     
@@ -125,7 +175,8 @@ pool =  function(t, y, params) {
 # also assume initial DOC is the same and 0 for both pools
 PoolDivisions = 50
 params = c(
-          Dout = .2, 
+          Dout = .2,   # essentially adjusts residence time
+                       # % of water IN the system that flows out in each hour
           PoolDivisions = PoolDivisions,
           #
           # With the exception of K, these params are completely made up at this point
@@ -139,8 +190,35 @@ params = c(
           rAlg = .1,  # this is the photosynthesis production
           BactInhibitsAlgae = .5,
           
+          BactD = .05, # loss of bacteria biomass each hour
+          AlgD = .15, # loss of algal biomass each hour
+          
           li = 1 # percentage of maximum light intensity shining down
          )
+
+
+system_plot = function(out) {
+  par(mfrow=c(2,3))
+  matplot(t, out[,2:3], type = "l", ylab = "DOC fraction 1", xlab = 'hours')
+  matplot(t, out[,params['PoolDivisions'] * 2+2], type = "l", ylab = "Bacteria Density", xlab = 'hours', ylim = c(0,params['KBact']))
+  matplot(t, out[,params['PoolDivisions'] * 2+3], type = "l", ylab = "Algae Density", xlab = 'hours', ylim = c(0, params['KAlg']))
+
+  inflows = sapply(1:PoolDivisions, function(subpool){DOCin(1, subpool, PoolDivisions)})
+  outflows = sapply(1:PoolDivisions, function(subpool){out[,1+2*subpool][max-1]})
+  ylimit = max(inflows)
+  ks = sapply(1:PoolDivisions, k, PoolDivisions)
+  plot(inflows~ks, type="l", ylim=c(0,ylimit), xlab='k' )
+  plot(outflows~ks,type="l", ylim=c(0,ylimit), xlab='k' )
+
+  par(mfrow=c(1,1))
+}
+
+movie_plot = function(out) {
+  for(i in 1:10){
+    outflows = sapply(1:PoolDivisions, function(subpool){out[,1+2*subpool][i * nrow(out) / 10 ]})
+    plot(outflows~ks,type="l", ylim=c(0,ylimit), xlab='k' )
+  }
+}
 
 #Initial.DOC = 0 # units ?
 #Initial.DOCoutflow = Initial.DOC * params['Dout']
@@ -165,31 +243,18 @@ params['rAlg'] = .3
 params['AlgaeInhibitsBact'] = .5
 state = c(rep(0, params['PoolDivisions'] * 2), 6.6213, 6.6974 )  # Algae + Bact stable
 #state = c(rep(0, params['PoolDivisions'] * 2), 10, 6.6974 )  # Algae + Bact stable
+
+# modeling something more like a lake
+params['Dout'] = .001
 out = ode(y = state, times = t, func = pool, parms = params)
 
-DOCend = out[nrow(out),2:101]
-state = c(DOCend, 6.6213, 6.6974 )  # Algae + Bact stable, with stabilized DOC flow
-out = ode(y = state, times = t, func = pool, parms = params)
-
-
-par(mfrow=c(2,3))
-matplot(t, out[,2:3], type = "l", ylab = "DOC fraction 1", xlab = 'hours')
-matplot(t, out[,params['PoolDivisions'] * 2+2], type = "l", ylab = "Bacteria Density", xlab = 'hours', ylim = c(0,params['KBact']))
-matplot(t, out[,params['PoolDivisions'] * 2+3], type = "l", ylab = "Algae Density", xlab = 'hours', ylim = c(0, params['KAlg']))
-
-inflows = sapply(1:PoolDivisions, function(subpool){DOCin(1, subpool, PoolDivisions)})
-outflows = sapply(1:PoolDivisions, function(subpool){out[,1+2*subpool][max-1]})
-ylimit = max(inflows)
-ks = sapply(1:PoolDivisions, k, PoolDivisions)
-plot(inflows~ks, type="l", ylim=c(0,ylimit), xlab='k' )
-plot(outflows~ks,type="l", ylim=c(0,ylimit), xlab='k' )
-
-par(mfrow=c(1,1))
-
-for(i in 1:10){
-  outflows = sapply(1:PoolDivisions, function(subpool){out[,1+2*subpool][i * nrow(out) / 10 ]})
-  plot(outflows~ks,type="l", ylim=c(0,ylimit), xlab='k' )
+with_docend = function() {
+  DOCend = out[nrow(out),2:101]
+  state = c(DOCend, 6.6213, 6.6974 )  # Algae + Bact stable, with stabilized DOC flow
+  out = ode(y = state, times = t, func = pool, parms = params)
 }
+
+
 
 #matplot(t, out[,params['PoolDivisions'] * 2+2], type = "l", ylab = "Bacteria Density", xlab = 'hours')
 

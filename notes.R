@@ -40,11 +40,18 @@ sum(out[6:50]) / sum(out)
 # 1.9, 2.4
 # .1 12
 # 0.4 3
-mean = 0.3
-sdlog = 2.5
+mean = 0.6
+sdlog = 1.5
 o = dlnorm(seq(0.0004,.8,.01), mean= mean, sdlog= sdlog)
 plot(o~seq(0.0004,.8,.01), ylim=c(0,2) )
 sum(o * .0079)
+
+mean = 0.6
+sd = .05
+o = dnorm(seq(0.0004,.8,.001), mean= mean, sd= sd)
+plot(o~seq(0.0004,.8,.001), ylim=c(0,2) )
+sum(o * .0079)
+
 
 # and here is the shape like in the paper
 plot(dlnorm(seq(0.0004,.8,.01), mean= mean, sdlog= sdlog)~log(seq(0.0004,.8,.01)) )
@@ -102,6 +109,20 @@ lookup = seq(maxi, mini, length=100)
 plot(out ~ lookup[0:100], ylim=c(0, 2))
 sum(out[1:25]) / sum(out)
 sum(out[25:58]) / sum(out)
+
+
+rCDOM = function(subpool, poolDivisions){
+  if(subpool > poolDivisions / 2){
+    return(0)
+  } else {
+    # parameterized as a 2nd order response to halfway through the pool division range
+    # the most photolabile is the slowest to be biolabile
+    rCDOM = (-.001 / (poolDivisions / 2)^2) * subpool^2  + .001
+    return(cDOM)
+  }
+}
+
+rCDOM = sapply(1:poolDivisions, function(subpool){ rCDOM( subpool, poolDivisions)  })
 
 
 
