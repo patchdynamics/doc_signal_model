@@ -51,6 +51,11 @@ k = function(subpool, poolDivisions){
   return(k)
 }
 
+rCDOM = function(subpool, poolDivisions){
+  # parameterize this somehow.. maybe just some simple function x2 or something.
+  
+}
+
 pool =  function(t, y, params) {
   
   MaximumFeasibleUptakeRate = MaximumPossibleUptake  # per hour
@@ -59,6 +64,8 @@ pool =  function(t, y, params) {
   BacteriaDensity = y[PoolDivisions * 2 + 1]
   AlgaeDensity = y[PoolDivisions * 2 + 2]
   
+  TotalCDOM = sum(DOC[1:nrow(DOC)/2])
+    
   with(as.list(params), {
     differentials = c()
     TotalBacterialUptake = 0
@@ -76,7 +83,9 @@ pool =  function(t, y, params) {
       
       #print(UptakeRateThisTimeStep)
       
-      dDOC = DOCin(t, i, PoolDivisions) - UptakeRate * BacteriaDensity - DOCoutflow
+      dDOC = DOCin(t, i, PoolDivisions) - UptakeRate * BacteriaDensity - DOCoutflow +
+             BactDist(i, BactD * B) + AlgDist(i, AlgD * A) +
+             -(rCDOM(i) * li - rCDOM(i) * DOC * A / (bA_CDOM + A) )
       
       # Ad Hoc Algal contribution to DOC
       l = .05 #exhudation of labile DOC by algae, needs to be properly parameterized
@@ -93,9 +102,10 @@ pool =  function(t, y, params) {
     
 
     # bacteria need to grow based on DOC uptake
-    dBacteriaDensity = BGE * TotalBacterialUptake * ( 1 - BacteriaDensity / KBact - AlgaeInhibitsBact * AlgaeDensity / KBact)
+    dBacteriaDensity = BGE * TotalBacterialUptake * ( 1 - BacteriaDensity / KBact - AlgaeInhibitsBact * AlgaeDensity / KBact) - BactD * B
     
-    dAlgaeDensity = rAlg * AlgaeDensity * ( 1 - AlgaeDensity / KAlg - BactInhibitsAlgae * BacteriaDensity / KAlg )
+    dAlgaeDensity = rAlg * li * AlgaeDensity * ( 1 - CDOMInhibitsAlgae * TotalCDOM / kAlg -  AlgaeDensity / KAlg - BactInhibitsAlgae * BacteriaDensity / KAlg ) +
+                    -AlgD * A          
     
     differentials = c(differentials, dBacteriaDensity, dAlgaeDensity)
     
@@ -127,7 +137,9 @@ params = c(
           KAlg = 10, 
           # these constants parameterized yet
           rAlg = .1,  # this is the photosynthesis production
-          BactInhibitsAlgae = .5
+          BactInhibitsAlgae = .5,
+          
+          li = 1 # percentage of maximum light intensity shining down
          )
 
 #Initial.DOC = 0 # units ?
