@@ -133,9 +133,9 @@ pool =  function(t, y, params) {
       
       #print(UptakeRateThisTimeStep)
       
-      dDOC = DOCin(t, i, PoolDivisions) - UptakeRate * BacteriaDensity - DOCoutflow +
-             BactDist(i, BactD * BacteriaDensity, PoolDivisions) + AlgDist(i, AlgD * AlgaeDensity, PoolDivisions) +
-             -(rCDOM(i, PoolDivisions) * li - rCDOM(i, PoolDivisions) * DOC * AlgaeDensity / (bA_CDOM + AlgaeDensity) )
+      dDOC = DOCin(t, i, PoolDivisions) - UptakeRate * BacteriaDensity - DOCoutflow + 0
+            # BactDist(i, BactD * BacteriaDensity, PoolDivisions) + AlgDist(i, AlgD * AlgaeDensity, PoolDivisions) +
+            # -(rCDOM(i, PoolDivisions) * li * DOC - rCDOM(i, PoolDivisions) * li * DOC * AlgaeDensity / (bA_CDOM + AlgaeDensity) )
       
       # Ad Hoc Algal contribution to DOC
       l = .05 #exhudation of labile DOC by algae, needs to be properly parameterized
@@ -152,10 +152,12 @@ pool =  function(t, y, params) {
     
 
     # bacteria need to grow based on DOC uptake
-    dBacteriaDensity = BGE * TotalBacterialUptake * ( 1 - BacteriaDensity / KBact - AlgaeInhibitsBact * AlgaeDensity / KBact) - BactD * B
+    dBacteriaDensity = BGE * TotalBacterialUptake * ( 1 - BacteriaDensity / KBact - AlgaeInhibitsBact * AlgaeDensity / KBact) - BactD * BacteriaDensity
     
-    dAlgaeDensity = rAlg * li * AlgaeDensity * ( 1 - CDOMInhibitsAlgae * TotalCDOM / kAlg -  AlgaeDensity / KAlg - BactInhibitsAlgae * BacteriaDensity / KAlg ) +
-                    -AlgD * AlgaeDensity          
+    # CDOMInhibitsAlgae  this should really be whatever light is left over
+    #                    however this is hard to track, perhaps bA_CDOM and this variable need to be combined to account for finite incident radiation
+    dAlgaeDensity = rAlg * li * AlgaeDensity * ( 1 - CDOMInhibitsAlgae * TotalCDOM / KAlg -  AlgaeDensity / KAlg - BactInhibitsAlgae * BacteriaDensity / KAlg ) +
+                    -AlgD * AlgaeDensity      
     
     differentials = c(differentials, dBacteriaDensity, dAlgaeDensity)
     
@@ -193,8 +195,13 @@ params = c(
           BactD = .05, # loss of bacteria biomass each hour
           AlgD = .15, # loss of algal biomass each hour
           
-          li = 1 # percentage of maximum light intensity shining down
-         )
+          # light parameters
+          # these need to be parameterize based off absorbances of algae and CDOM
+          # vs. invident light
+          li = 0, # percentage of maximum light intensity shining down
+          bA_CDOM = 5, # biomass density where 1/2 Photo Active Radiation is block from participating in photodegradation 
+          CDOMInhibitsAlgae = .4 # how much a kg of CDOM inhibits 
+          )
 
 
 system_plot = function(out) {
@@ -228,6 +235,7 @@ Initial.AlgaeDensity = 0
 one.week = 24*7
 two.weeks = 24*14
 one.month = 24 * 30
+two.months = 24 * 60
 max = one.week # one month
 t = 1:one.week
 
@@ -245,8 +253,14 @@ state = c(rep(0, params['PoolDivisions'] * 2), 6.6213, 6.6974 )  # Algae + Bact 
 #state = c(rep(0, params['PoolDivisions'] * 2), 10, 6.6974 )  # Algae + Bact stable
 
 # modeling something more like a lake
-params['Dout'] = .001
-out = ode(y = state, times = t, func = pool, parms = params)
+params['Dout'] = .2
+params['li'] = 0
+state = c(rep(0, params['PoolDivisions'] * 2), 0, 0)
+t = 1:150
+out2 = ode(y = state, times = t, func = pool, parms = params)
+
+system_plot(out2)
+movie_plot(out2)
 
 with_docend = function() {
   DOCend = out[nrow(out),2:101]
